@@ -1,0 +1,24 @@
+# MRHA default config — Phase A MVP
+n_items: 20
+seed: 42
+
+attacks:
+  - evidence_swap
+  - evidence_destroy
+  - wrong_caption
+  - judge_bait
+
+model:
+  backend: mlx   # mlx | api | echo
+  id: mlx-community/Qwen2-VL-7B-Instruct-4bit
+  max_tokens: 128
+
+paths:
+  benchmark: data/benchmark
+  manifest: data/benchmark/manifest.jsonl
+  results: results
+  raw: data/raw
+
+metrics:
+  rhr_proxy: keyword_match
+  numeric_tol: 0.51

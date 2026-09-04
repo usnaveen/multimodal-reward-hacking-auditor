@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mrha"
+version = "0.1.0"
+description = "Multimodal Reward-Hacking / Drift Auditor for chart-VQA agents"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [{ name = "Naveen", email = "usnaveen@users.noreply.github.com" }]
+keywords = ["vlm", "reward-hacking", "chart-vqa", "mlx", "audit"]
+dependencies = [
+  "matplotlib>=3.8",
+  "pillow>=10.0",
+  "pyyaml>=6.0",
+  "pydantic>=2.0",
+  "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+mlx = ["mlx>=0.15", "mlx-vlm>=0.1"]
+dev = ["pytest>=7.0"]
+
+[project.urls]
+Homepage = "https://github.com/usnaveen/multimodal-reward-hacking-auditor"
+Repository = "https://github.com/usnaveen/multimodal-reward-hacking-auditor"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
