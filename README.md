@@ -175,3 +175,7 @@ PLAN.md
 ## 9. License
 
 MIT — see `LICENSE`. Third-party datasets: see `DATASETS.md`.
+
+## Interview prep
+
+See [`INTERVIEW_PREP.md`](INTERVIEW_PREP.md) for concepts-in-order, paper reading list, and mock interview questions.
