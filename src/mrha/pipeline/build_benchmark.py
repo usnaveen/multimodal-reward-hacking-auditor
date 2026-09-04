@@ -1,4 +1,4 @@
-"""Build synthetic chart-VQA benchmark with attacks -> manifest.jsonl."""
+"""Build chart-VQA benchmark with attacks -> manifest.jsonl."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from typing import Iterable
 import yaml
 
 from mrha.attacks.base import registry
-from mrha.charts.generate import generate_chart_bundle, load_truth
-from mrha.schema import AttackFamily, ChartType, ManifestItem
+from mrha.charts.generate import load_truth
+from mrha.schema import AttackFamily, AttackProtocol, ManifestItem
 
 
 def load_config(path: Path | str) -> dict:
@@ -20,12 +20,17 @@ def load_config(path: Path | str) -> dict:
 
 
 def build_benchmark(
-    n_items: int = 20,
+    n_items: int = 200,
     out_dir: Path | str = "data/benchmark",
     seed: int = 42,
     attacks: Iterable[str] | None = None,
+    protocols: Iterable[str] | None = None,
+    source: str = "synthetic",
 ) -> Path:
     """Generate N clean charts + configured attacks; write manifest.jsonl.
+
+    ``source``: ``synthetic`` | ``chartqa`` | ``mixed``.
+    Dual protocols apply to evidence_swap / evidence_destroy only.
 
     Returns path to manifest.jsonl.
     """
@@ -38,6 +43,12 @@ def build_benchmark(
     attack_names = list(attacks) if attacks is not None else [
         a.value for a in AttackFamily if a != AttackFamily.CLEAN
     ]
+    proto_names = list(protocols) if protocols is not None else [
+        AttackProtocol.INVARIANCE.value,
+        AttackProtocol.RE_ANSWER.value,
+    ]
+    proto_list = [AttackProtocol(p) for p in proto_names]
+
     reg = registry()
     selected = []
     for name in attack_names:
@@ -48,39 +59,60 @@ def build_benchmark(
             raise KeyError(f"Unknown attack: {name}")
         selected.append(reg[fam])
 
-    chart_cycle = list(ChartType)
-    items: list[ManifestItem] = []
+    # Load clean items from source
+    from mrha.datasets.synthetic import load_synthetic_items
+    from mrha.datasets.chartqa import load_chartqa_items
 
-    for i in range(n_items):
-        item_seed = seed + i
-        item_id = f"chart_{i:04d}"
-        ct = chart_cycle[i % len(chart_cycle)]
-        bundle = generate_chart_bundle(
-            seed=item_seed,
-            out_dir=clean_dir,
-            item_id=item_id,
-            chart_type=ct,
-        )
-        clean = ManifestItem(
-            item_id=item_id,
-            parent_id=None,
-            attack=AttackFamily.CLEAN,
-            chart_type=bundle["truth"].chart_type,
-            image_path=bundle["image_path"],
-            truth_path=bundle["truth_path"],
-            question=bundle["question"],
-            question_type=bundle["question_type"],
-            answer_gold=bundle["answer_gold"],
-            answer_numeric=bundle["answer_numeric"],
-            caption=bundle["caption"],
-            prompt_prefix=None,
-            metadata={"seed": item_seed},
-        )
+    source = (source or "synthetic").lower()
+    cleans: list[ManifestItem] = []
+
+    if source == "synthetic":
+        cleans = load_synthetic_items(n_items, clean_dir, seed=seed)
+    elif source == "chartqa":
+        cleans = load_chartqa_items(n_items, clean_dir, seed=seed)
+    elif source == "mixed":
+        n_syn = n_items // 2
+        n_cq = n_items - n_syn
+        cleans = load_synthetic_items(n_syn, clean_dir, seed=seed)
+        try:
+            cleans.extend(load_chartqa_items(n_cq, clean_dir, seed=seed + 10_000))
+        except Exception as e:
+            print(
+                f"[warn] ChartQA unavailable ({e}); "
+                f"filling remaining {n_cq} with synthetic."
+            )
+            cleans.extend(
+                load_synthetic_items(
+                    n_cq, clean_dir, seed=seed + 20_000, id_prefix="chart_fill"
+                )
+            )
+    else:
+        raise ValueError(f"Unknown source: {source}")
+
+    items: list[ManifestItem] = []
+    for clean in cleans:
+        # Ensure protocol field on clean
+        if not getattr(clean, "protocol", None):
+            clean.protocol = AttackProtocol.INVARIANCE
         items.append(clean)
         truth = load_truth(Path(clean.truth_path))
         for atk in selected:
-            attacked = atk.apply(clean, truth, attack_dir, seed=item_seed)
-            items.append(attacked)
+            if atk.supports_protocols:
+                for proto in proto_list:
+                    attacked = atk.apply(
+                        clean, truth, attack_dir, seed=clean.metadata.get("seed", seed),
+                        protocol=proto,
+                    )
+                    items.append(attacked)
+            else:
+                attacked = atk.apply(
+                    clean,
+                    truth,
+                    attack_dir,
+                    seed=clean.metadata.get("seed", seed),
+                    protocol=AttackProtocol.INVARIANCE,
+                )
+                items.append(attacked)
 
     manifest_path = out_dir / "manifest.jsonl"
     with manifest_path.open("w", encoding="utf-8") as f:
@@ -88,9 +120,11 @@ def build_benchmark(
             f.write(it.model_dump_json() + "\n")
 
     meta = {
-        "n_clean": n_items,
+        "n_clean": len(cleans),
         "n_total": len(items),
         "attacks": [a.family.value for a in selected],
+        "protocols": [p.value for p in proto_list],
+        "source": source,
         "seed": seed,
         "manifest": str(manifest_path),
     }

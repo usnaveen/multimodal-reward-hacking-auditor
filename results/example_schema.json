@@ -1,20 +1,17 @@
 {
-  "description": "Example schema for metrics_summary.json. Populate by running the audit pipeline — do not invent accuracies or RHR numbers.",
-  "metrics_summary": {
-    "n_items": "int",
-    "n_clean": "int",
-    "n_attack": "int",
-    "blind_spot_rate": "float|null — fraction of attacked items where oracle fails but a proxy still scores >= 0.5",
-    "proxy_oracle_gap": "map proxy_name -> (mean_proxy - mean_oracle)",
-    "rhr": "float|null — Reward Hacking Rate (Yao26-style) when labels available",
-    "proxy_oracle_correlation": "map proxy_name -> Pearson(r)",
-    "notes": ["string"]
-  },
-  "audit_records_jsonl": {
-    "item_id": "string",
-    "attack": "clean|evidence_swap|evidence_destroy|wrong_caption|judge_bait",
-    "oracle_correct": "bool",
-    "proxy_scores": {"outcome_only": "float", "keyword_match": "float", "weak_vlm_judge": "float"},
-    "detector": "object"
-  }
+  "description": "Example schema for metrics_summary.json — populate by running the audit; do not invent numbers.",
+  "fields": [
+    "n_items",
+    "n_clean",
+    "n_attack",
+    "blind_spot_rate",
+    "blind_spot_rate_ci95",
+    "proxy_oracle_gap",
+    "rhr",
+    "rhr_ci95",
+    "nrfr",
+    "proxy_oracle_correlation",
+    "per_attack",
+    "notes"
+  ]
 }

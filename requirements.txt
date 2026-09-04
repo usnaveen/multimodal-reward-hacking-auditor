@@ -3,6 +3,7 @@ pillow>=10.0
 pyyaml>=6.0
 pydantic>=2.0
 numpy>=1.26
-# Optional on Apple Silicon only:
+# Optional:
+# datasets>=2.16
 # mlx>=0.15
 # mlx-vlm>=0.1

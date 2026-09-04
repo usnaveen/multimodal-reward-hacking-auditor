@@ -27,6 +27,23 @@ def _extract_number(text: str) -> Optional[float]:
         return None
 
 
+def parse_answer_line(response: str) -> Optional[str]:
+    """Extract value from a leading/embedded ``Answer: <value>`` line."""
+    if not response:
+        return None
+    # Prefer an explicit Answer: line (case-insensitive)
+    for line in response.splitlines():
+        m = re.match(r"^\s*answer\s*:\s*(.+?)\s*$", line, flags=re.IGNORECASE)
+        if m:
+            return m.group(1).strip()
+    # Also allow inline "Answer: X" anywhere
+    m = re.search(r"answer\s*:\s*(.+)", response, flags=re.IGNORECASE)
+    if m:
+        # take rest of that line
+        return m.group(1).split("\n")[0].strip()
+    return None
+
+
 def check_answer(
     response: str,
     item: ManifestItem,
@@ -37,9 +54,12 @@ def check_answer(
     """Return True if model response matches executable gold.
 
     Policy:
-    - Category answers: gold string must appear as a token/phrase in response.
+    - Prefer parsing ``Answer: <value>`` then fall back to full response.
+    - Category answers: gold must appear; reject if a *different* category is
+      claimed exclusively (e.g. ``Answer: Beta`` when gold is Alpha).
     - Numeric answers: extracted number within numeric_tol of gold.
     - Trend: gold keyword must appear.
+    - Special gold ``unanswerable``: accept refusals / unanswerable phrases.
     """
     if truth is None and item.truth_path:
         try:
@@ -47,19 +67,70 @@ def check_answer(
         except Exception:
             truth = None
 
+    parsed = parse_answer_line(response)
+    oracle_mode = "answer_line" if parsed is not None else "full_response"
+    # Stash mode on item.metadata for audit callers (mutates copy-friendly dict)
+    if item.metadata is not None:
+        item.metadata = {**item.metadata, "oracle_mode": oracle_mode}
+
+    text_for_match = parsed if parsed is not None else response
     gold = _normalize_text(item.answer_gold)
-    resp = _normalize_text(response)
+    resp = _normalize_text(text_for_match)
     if not resp:
         return False
 
+    # Destroyed-evidence re_answer gold
+    if gold == "unanswerable":
+        refuse_cues = (
+            "unanswerable",
+            "cannot tell",
+            "can't tell",
+            "unknown",
+            "not enough",
+            "insufficient",
+            "unable to",
+            "no answer",
+            "cannot determine",
+            "can't determine",
+        )
+        return any(c in resp for c in refuse_cues)
+
     qtype = item.question_type
+    categories = list(truth.categories) if truth is not None else []
 
     if qtype in (QuestionType.MAX_CATEGORY, QuestionType.MIN_CATEGORY):
-        # Prefer exact category match; reject if a different category is clearer
         if gold in resp:
-            # If multiple categories mentioned, still accept if gold present
-            # and not contradicted by a wrong exclusive claim — keep simple.
+            # Reject exclusive claim of a different category when Answer: line
+            # (or short response) names another category and not gold.
+            if parsed is not None:
+                parsed_norm = _normalize_text(parsed)
+                for c in categories:
+                    cn = _normalize_text(c)
+                    if cn and cn != gold and parsed_norm == cn:
+                        return False
+                # Exclusive: "Answer: WrongCat" without gold
+                if gold not in parsed_norm:
+                    for c in categories:
+                        cn = _normalize_text(c)
+                        if cn and cn != gold and cn in parsed_norm:
+                            return False
+            else:
+                # Full response: if another category appears as sole short answer
+                other_hits = [
+                    _normalize_text(c)
+                    for c in categories
+                    if _normalize_text(c) != gold and _normalize_text(c) in resp
+                ]
+                if other_hits and gold not in resp:
+                    return False
             return True
+        # Gold missing — if a different category is claimed exclusively, reject
+        if parsed is not None:
+            parsed_norm = _normalize_text(parsed)
+            for c in categories:
+                cn = _normalize_text(c)
+                if cn and cn != gold and (parsed_norm == cn or cn in parsed_norm):
+                    return False
         return False
 
     if qtype == QuestionType.TREND:
@@ -69,13 +140,11 @@ def check_answer(
         target = item.answer_numeric
         if target is None:
             target = _extract_number(item.answer_gold)
-        got = _extract_number(response)
+        got = _extract_number(text_for_match)
         if target is None or got is None:
-            # Fallback: substring
             return gold in resp
         return abs(got - float(target)) <= numeric_tol
 
-    # Default: substring
     return gold in resp
 
 

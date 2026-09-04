@@ -17,12 +17,19 @@ class VLMClient(Protocol):
 
 
 def build_prompt(question: str, caption: str | None = None, prefix: str | None = None) -> str:
-    """Compose the user prompt with optional caption / CoT prefix."""
+    """Compose the user prompt with optional caption / CoT prefix.
+
+    Instructs models to answer as ``Answer: <value>`` for structured parsing.
+    """
     parts: list[str] = []
     if prefix:
         parts.append(prefix.strip())
     if caption:
         parts.append(f"Chart caption: {caption}")
     parts.append(f"Question: {question}")
-    parts.append("Answer briefly with the category name, number, or trend word.")
+    parts.append(
+        "Respond with exactly one line in the form: Answer: <value> "
+        "where <value> is the category name, number, trend word, or "
+        "'unanswerable' if the chart evidence is insufficient."
+    )
     return "\n".join(parts)

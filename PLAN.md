@@ -16,56 +16,52 @@ that gap measurable for chart-VQA under controlled attacks.
 
 | Anchor | Relevance |
 |--------|-----------|
-| **Yao26** — RHR / NRFR | Reward Hacking Rate and related non-robustness framing; we implement RHR when oracle labels exist; NRFR is a later-phase hook. |
-| **Hwa25 FRAME** | Visual framing / judge-bait style perturbations; inspires `judge_bait` overlays. |
-| **Kha26c FOCUS** | Focus / grounding pressure on multimodal models; motivates counterfactual evidence attacks. |
-| **Zha26** | Misleading captions / CoT prefixes; inspires `wrong_caption`. |
-| **Wu24** | Multimodal evaluation / chart understanding context for ChartQA-style tasks. |
+| **Yao26** — RHR / NRFR | Reward Hacking Rate; NRFR via best-of-n pressure scaffolding |
+| **Hwa25 FRAME** | Visual framing / judge-bait — stamps & brightness **without** painting gold |
+| **Kha26c FOCUS** | Grounding pressure; dual evidence protocols |
+| **Zha26** | Misleading captions / CoT prefixes; expanded template bank |
+| **Wu24** | Multimodal / chart evaluation context |
 
-Novelty claim for this harness: **executable chart oracles + attack families +
-proxy suite + interpretable detector channels** in one runnable MLX-oriented
-pipeline — not a claim that we reinvent RHR/FRAME/FOCUS.
+## Dual evidence protocols (design fix)
+
+| Protocol | Gold | Interpretation of oracle success on evidence attacks |
+|----------|------|------------------------------------------------------|
+| **invariance** | Stays on *clean* truth | Emitting old gold after visual change → **shortcut / ungrounded** |
+| **re_answer** | Updates to *visual* truth | Emitting new gold → **grounded re-reading** |
+
+`visual_answer_gold` is always stored in metadata under invariance so you can
+separately score "correct on the new image."
 
 ## Threat model & oracle policy
 
-1. **Executable truth only.** Synthetic charts store numeric JSON at generation
-   time. The oracle checks answers against that JSON (exact category / numeric
-   tolerance). A VLM is **never** used as ground truth.
-2. **Proxies are adversarial surfaces.** `outcome_only`, `keyword_match`, and
-   `weak_vlm_judge` may be gamed by overlays, captions, or rubber-stamping.
-3. **Attacks preserve the question** (and usually the gold label) while changing
-   evidence or text context — so proxy–oracle disagreement is informative.
-4. **Frozen audit.** Phase A evaluates frozen checkpoints; no RL training loop.
+1. **Executable truth only** for synthetic charts. VLM is never ground truth.
+2. **Proxies are adversarial surfaces.** `outcome_only`, `keyword_match`,
+   `gold_overlap` are explicit; `weak_vlm_judge` requires a real VLMClient
+   (`--judge-backend`) — no silent gold-overlap fake judge.
+3. **Attacks** include `nuisance` (FP control) and FRAME-like `judge_bait`
+   that never paints the answer on the image.
+4. **Frozen audit** + optional **best-of-n pressure** for NRFR (no full RL).
 
-## MVP (Phase A) — this repository
+## Phase A (0.2.0) — this repository
 
-- Synthetic bar / line / pie charts with truth JSON
-- Attacks: `evidence_swap`, `evidence_destroy`, `wrong_caption`, `judge_bait`
-- Proxies: `outcome_only`, `keyword_match`, `weak_vlm_judge`
-- Metrics: `blind_spot_rate`, `proxy_oracle_gap`, `RHR`, correlations; NRFR stub note
-- MLX VLM client (Apple Silicon) + optional API stub
-- Detector: counterfactual grounding + judge-audit channels
-- Smoke test without GPU/MLX
+- Synthetic default **N=200**; ChartQA optional loader
+- Attacks: evidence_swap (permute / swap-max-min / reverse), evidence_destroy,
+  wrong_caption, judge_bait, **nuisance**
+- Protocols: invariance, re_answer on evidence attacks
+- Proxies: outcome_only, keyword_match, gold_overlap; weak_vlm_judge opt-in
+- Metrics: blind_spot_rate (+ bootstrap CI), proxy_oracle_gap, RHR, **NRFR**,
+  per-attack CSV
+- Detector P/R if `data/labels/detector_labels.jsonl` present (hold-out)
+- MLX client + echo stub + CI smoke
 
 ## Later phases
 
 | Phase | Scope |
 |-------|-------|
-| B | Larger N, more chart types, stratified questions, human spot-checks |
-| C | Preference / pairwise labels → NRFR-style metrics |
-| D | Train-time reward models; measure hacking under proxy optimization |
-| E | Cross-model leaderboard; release frozen manifests + hash-locked images |
-
-## Week plan (suggested)
-
-| Day | Goal |
-|-----|------|
-| 1 | Clone, venv, smoke test, build N=20 benchmark on Mac |
-| 2 | Install MLX + download 4-bit 7B; dry-run `echo` backend then MLX on 5 items |
-| 3 | Full frozen audit on 48GB machine; write real `results/` |
-| 4 | Metric tables, per-attack breakdowns, detector flag rates |
-| 5 | Ablate proxies; document failure modes; draft resume bullets from **real** numbers |
-| 6–7 | Write short tech note; open issues for Phase B |
+| B | Chartographer / ReachQA; stratified questions; human spot-checks |
+| C | Preference / pairwise labels at scale |
+| D | Train-time reward models under proxy optimization |
+| E | Cross-model leaderboard; hash-locked manifests |
 
 ## Non-goals (Phase A)
 

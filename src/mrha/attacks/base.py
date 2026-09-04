@@ -4,15 +4,16 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
 
-from mrha.schema import AttackFamily, ChartTruth, ManifestItem
+from mrha.schema import AttackFamily, AttackProtocol, ChartTruth, ManifestItem
 
 
 class Attack(ABC):
     """Base class for attack families."""
 
     family: AttackFamily
+    # Evidence attacks support dual protocols; others default to invariance.
+    supports_protocols: bool = False
 
     @abstractmethod
     def apply(
@@ -21,6 +22,7 @@ class Attack(ABC):
         truth: ChartTruth,
         out_dir: Path,
         seed: int = 0,
+        protocol: AttackProtocol = AttackProtocol.INVARIANCE,
     ) -> ManifestItem:
         """Produce an attacked ManifestItem; write new image if needed."""
 
@@ -33,6 +35,7 @@ def registry() -> dict[AttackFamily, Attack]:
     from mrha.attacks.evidence_destroy import EvidenceDestroyAttack
     from mrha.attacks.evidence_swap import EvidenceSwapAttack
     from mrha.attacks.judge_bait import JudgeBaitAttack
+    from mrha.attacks.nuisance import NuisanceAttack
     from mrha.attacks.wrong_caption import WrongCaptionAttack
 
     attacks = [
@@ -40,5 +43,6 @@ def registry() -> dict[AttackFamily, Attack]:
         EvidenceDestroyAttack(),
         WrongCaptionAttack(),
         JudgeBaitAttack(),
+        NuisanceAttack(),
     ]
     return {a.family: a for a in attacks}

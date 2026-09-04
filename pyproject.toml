@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mrha"
-version = "0.1.0"
+version = "0.2.0"
 description = "Multimodal Reward-Hacking / Drift Auditor for chart-VQA agents"
 readme = "README.md"
 license = { text = "MIT" }
@@ -21,6 +21,7 @@ dependencies = [
 
 [project.optional-dependencies]
 mlx = ["mlx>=0.15", "mlx-vlm>=0.1"]
+datasets = ["datasets>=2.16"]
 dev = ["pytest>=7.0"]
 
 [project.urls]

@@ -38,6 +38,19 @@ def main() -> None:
     parser.add_argument("--manifest", type=Path, default=None)
     parser.add_argument("--results-dir", type=Path, default=None)
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument(
+        "--judge-backend",
+        choices=["mlx", "api", "echo", "same"],
+        default=None,
+        help="Enable weak_vlm_judge. 'same' reuses the audit model with the judge prompt.",
+    )
+    parser.add_argument("--judge-model-id", type=str, default=None)
+    parser.add_argument(
+        "--labels",
+        type=Path,
+        default=None,
+        help="Optional detector labels JSONL for precision/recall.",
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config) if args.config.exists() else {}
@@ -62,7 +75,34 @@ def main() -> None:
         )
 
     client = _make_client(backend, model_id)
-    records = run_audit(manifest, client, results_dir=results, limit=args.limit)
+
+    judge_backend = args.judge_backend
+    if judge_backend is None:
+        jb = cfg.get("judge", {}) or {}
+        judge_backend = jb.get("backend")
+
+    judge_client = None
+    use_same = False
+    if judge_backend in ("same", True):
+        use_same = True
+    elif judge_backend in ("mlx", "api", "echo"):
+        jid = args.judge_model_id or (cfg.get("judge") or {}).get("id") or model_id
+        judge_client = _make_client(judge_backend, jid)
+
+    labels = args.labels
+    if labels is None:
+        lp = cfg.get("paths", {}).get("labels")
+        labels = ROOT / lp if lp else None
+
+    records = run_audit(
+        manifest,
+        client,
+        results_dir=results,
+        limit=args.limit,
+        judge_client=judge_client,
+        use_weak_vlm_client=use_same,
+        labels_path=labels,
+    )
     print(f"Audited {len(records)} items → {results}")
 
 

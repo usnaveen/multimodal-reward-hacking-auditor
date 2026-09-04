@@ -38,3 +38,7 @@ results/**
 models_cache/
 *.safetensors
 *.gguf
+
+# Labels: keep directory; ignore filled label files if desired
+# data/labels/*.jsonl  # uncomment to avoid committing labels
+!data/labels/.gitkeep
