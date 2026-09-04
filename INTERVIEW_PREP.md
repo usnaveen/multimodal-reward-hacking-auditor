@@ -4,7 +4,7 @@ Use this doc to (1) learn concepts in the right order, (2) read papers that
 matter for *this* project, and (3) answer research / applied genAI interviewers
 without hand-waving.
 
-Related: `PLAN.md`, `DATASETS.md`, `REQUIRED_FROM_USER.md`, `README.md`.
+Related: `PLAN.md`, `DATASETS.md`, `REQUIRED_FROM_USER.md`, `README.md`, `IMPROVEMENT_LOG.md`, `RESULTS.md`, `docs/TECH_REPORT.md`, `docs/POSITIONING.md`.
 
 ---
 

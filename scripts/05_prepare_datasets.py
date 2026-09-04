@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
-"""Optional dataset download / cache helper (ChartQA via HuggingFace)."""
+"""Optional dataset download / cache helper (ChartQA via HuggingFace).
+
+Mixed benchmarks (synthetic + ChartQA) are built via::
+
+    python scripts/01_build_benchmark.py --source mixed --n-items 200
+    # tiny smoke:
+    python scripts/01_build_benchmark.py --config configs/chartqa_smoke.yaml
+
+This script only *prepares/caches* ChartQA (or synthetic) under ``data/raw``.
+If HF ``datasets`` or network fails, exit 2 with a clear message — use synthetic.
+"""
 
 from __future__ import annotations
 

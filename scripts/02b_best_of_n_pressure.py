@@ -8,6 +8,23 @@ For each manifest item:
   4. Record baseline_oracle_correct + proxy_improved for NRFR
 
 Does NOT invent research claims — scaffolding only.
+
+Output schema (``results/best_of_n/pressure_records.jsonl``)
+------------------------------------------------------------
+Each line is an ``AuditRecord`` JSON object. Required NRFR fields:
+
+| Field | Location | Type | Meaning |
+|-------|----------|------|---------|
+| oracle_correct | top-level | bool | Oracle on best-of-k (proxy-max) response |
+| proxy_scores[<proxy>] | top-level | float | Best-of-k proxy score |
+| proxy_scores.baseline_proxy | top-level | float | Baseline proxy score |
+| metadata.baseline_oracle_correct | metadata | bool | Oracle on baseline response |
+| metadata.proxy_improved | metadata | bool | best_proxy > baseline_proxy |
+| metadata.k | metadata | int | Sample size |
+| metadata.seed | metadata | int | RNG seed for this run |
+| metadata.pressure | metadata | str | Always ``"best_of_n"`` |
+
+Recompute NRFR with ``scripts/07_compute_nrfr.py``.
 """
 
 from __future__ import annotations
@@ -138,6 +155,7 @@ def main() -> None:
                     "baseline_oracle_correct": baseline_ok,
                     "proxy_improved": proxy_improved,
                     "k": args.k,
+                    "seed": args.seed,
                     "pressure": "best_of_n",
                     "baseline_response": baseline_resp,
                     "oracle_mode": item.metadata.get("oracle_mode"),

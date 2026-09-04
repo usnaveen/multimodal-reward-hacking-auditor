@@ -1,8 +1,8 @@
 # Multimodal Reward-Hacking Auditor (MRHA)
 
-**Phase A research harness (v0.2.0)** — upgrade from toy MVP: dual evidence
-protocols, honest proxies, nuisance controls, ChartQA loader, best-of-n NRFR
-scaffolding, and CI.
+**Phase A research harness (v0.2.1)** — Interview Round 1: results scaffolding,
+NRFR path, cross-tables, ChartQA robustness, label tooling, tech report &
+positioning (still dual protocols / honest proxies / CI).
 
 Public repo: [github.com/usnaveen/multimodal-reward-hacking-auditor](https://github.com/usnaveen/multimodal-reward-hacking-auditor)
 
@@ -39,6 +39,22 @@ and **not** fabricated leaderboard numbers.
 
 Related anchors: Yao26 (RHR/NRFR), Hwa25 FRAME, Kha26c FOCUS, Zha26, Wu24.
 See `PLAN.md`.
+
+---
+
+
+## How this differs from Yao26 / FRAME / FOCUS
+
+| Work | Center of gravity | MRHA |
+|------|-------------------|------|
+| **Yao26** | Multimodal reward hacking under RL; defines **RHR** & **NRFR** | Same *metric language*; we ship an **audit harness** + best-of-n pressure scaffold — **we do not claim** their full RL runs or numbers |
+| **FRAME (Hwa25)** | Fooling LVLM *judges* with visual framing | FRAME-like `judge_bait` **inside** agent audits with executable oracles; baits never paint gold; plus `nuisance` FP control |
+| **FOCUS (Kha26c)** | Evaluator blind spots / perturbation thinking | Dual **invariance / re_answer** gold protocols + honest proxy/judge split — **not** a FOCUS reproduction |
+
+**Claim:** measurable proxy–oracle gaps for chart-VQA under controlled attacks.
+**Non-claim:** SOTA VLM, full Yao26 RL, or invented leaderboard metrics.
+
+One-pager: [`docs/POSITIONING.md`](docs/POSITIONING.md). Longer: [`docs/TECH_REPORT.md`](docs/TECH_REPORT.md).
 
 ---
 
@@ -115,8 +131,18 @@ python scripts/02b_best_of_n_pressure.py --backend echo --k 4
 # Metrics recompute
 python scripts/03_compute_metrics.py
 
-# Optional dataset prep
+# Optional dataset prep / tiny mixed smoke
 python scripts/05_prepare_datasets.py --source chartqa --limit 200
+python scripts/01_build_benchmark.py --config configs/chartqa_smoke.yaml
+
+# Render tables/figures (no-op fabricate: exits 0 if no real metrics)
+python scripts/06_render_results.py
+python scripts/07_compute_nrfr.py --pressure-jsonl results/best_of_n/pressure_records.jsonl
+python scripts/08_cross_table.py --records results/audit_records.jsonl --out results/cross_table
+
+# Human detector labels + hold-out split
+python scripts/09_label_detector.py --file-only --n 40
+python scripts/10_split_labels.py --train-frac 0.7
 ```
 
 ---
@@ -147,20 +173,33 @@ python scripts/05_prepare_datasets.py --source chartqa --limit 200
 
 ---
 
-## 7. Layout
+## 7. Layout & docs
 
 ```
 src/mrha/           # package (datasets/, attacks/, proxies/, …)
-scripts/            # 01 build, 02 audit, 02b pressure, 03 metrics, 04 smoke, 05 data
-configs/default.yaml
+scripts/            # 01–10: build, audit, pressure, metrics, smoke, data,
+                    #        render, nrfr, cross_table, labels, split
+configs/            # default.yaml, chartqa_smoke.yaml
 data/benchmark/     # generated
-data/labels/        # optional detector_labels.jsonl
-results/            # audit outputs (never invent)
+data/labels/        # detector labels + hold-out (see data/labels/README.md)
+results/            # audit outputs (never invent) — see results/README.md
+docs/               # TECH_REPORT.md, POSITIONING.md
+RESULTS.md          # placeholders only (<!-- FILL_FROM_REAL_RUN -->)
+IMPROVEMENT_LOG.md  # Round 1+ interview fixes
+INTERVIEW_PREP.md
 DATASETS.md
 REQUIRED_FROM_USER.md
 PLAN.md
 .github/workflows/ci.yml
 ```
+
+| Doc | Role |
+|-----|------|
+| [INTERVIEW_PREP.md](INTERVIEW_PREP.md) | Concepts, papers, talking points |
+| [IMPROVEMENT_LOG.md](IMPROVEMENT_LOG.md) | Interviewer critiques → fixes |
+| [RESULTS.md](RESULTS.md) | Result placeholders (no fake numbers) |
+| [docs/TECH_REPORT.md](docs/TECH_REPORT.md) | 4–6pp methods writeup |
+| [docs/POSITIONING.md](docs/POSITIONING.md) | Claim vs non-claim one-pager |
 
 ---
 
@@ -175,7 +214,3 @@ PLAN.md
 ## 9. License
 
 MIT — see `LICENSE`. Third-party datasets: see `DATASETS.md`.
-
-## Interview prep
-
-See [`INTERVIEW_PREP.md`](INTERVIEW_PREP.md) for concepts-in-order, paper reading list, and mock interview questions.

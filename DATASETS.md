@@ -31,6 +31,7 @@ python scripts/01_build_benchmark.py --source synthetic --n-items 200
 | **Prep** | `pip install 'mrha[datasets]'` then `python scripts/05_prepare_datasets.py --source chartqa --limit 200` |
 
 Offline: loader raises a clear error → use `--source synthetic`.
+Tiny mixed smoke: `configs/chartqa_smoke.yaml` (see `docs/CHARTQA_FIXTURE_NOTE.md`).
 
 ```bash
 python scripts/01_build_benchmark.py --source chartqa --n-items 50

@@ -1,0 +1,35 @@
+# Tiny mixed / ChartQA-oriented smoke config (no GPU required for echo audit).
+# ChartQA half requires: pip install 'mrha[datasets]' and network to HF.
+n_items: 4
+seed: 7
+
+source: mixed  # synthetic | chartqa | mixed
+
+protocols:
+  - invariance
+  - re_answer
+
+attacks:
+  - evidence_swap
+  - wrong_caption
+  - nuisance
+
+model:
+  backend: echo
+  id: echo-stub
+  max_tokens: 64
+
+judge:
+  backend: null
+  id: null
+
+paths:
+  benchmark: data/benchmark_smoke
+  manifest: data/benchmark_smoke/manifest.jsonl
+  results: results/smoke
+  raw: data/raw
+  labels: data/labels/detector_labels.jsonl
+
+metrics:
+  rhr_proxy: keyword_match
+  numeric_tol: 0.51

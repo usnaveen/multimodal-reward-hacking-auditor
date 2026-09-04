@@ -1,16 +1,21 @@
 """ChartQA loader via HuggingFace ``datasets`` (optional dependency).
 
-Uses ``ahmed-masry/ChartQA`` test/human split subset when available.
+Uses ``ahmed-masry/ChartQA`` (test / human-oriented subset) when available.
 Degrades gracefully offline with a clear message.
+
+Column-name variants handled (HF cards differ across revisions):
+  question: query | question | Question
+  answer:   label | answers | answer | Answer | label_text
+  image:    image | img | chart | Image
+  type/src: type | split | source | human_or_augmented
 """
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
-from mrha.charts.generate import render_chart, save_truth
+from mrha.charts.generate import save_truth
 from mrha.schema import (
     AttackFamily,
     AttackProtocol,
@@ -21,34 +26,61 @@ from mrha.schema import (
 )
 
 
+_QUESTION_KEYS = ("query", "question", "Question", "query_text")
+_ANSWER_KEYS = ("label", "answers", "answer", "Answer", "label_text", "ground_truth")
+_IMAGE_KEYS = ("image", "img", "chart", "Image", "table_image")
+_TYPE_KEYS = ("type", "split", "source", "human_or_augmented", "qa_type")
+
+
+def _first(row: dict[str, Any], keys: tuple[str, ...], default: Any = None) -> Any:
+    for k in keys:
+        if k in row and row[k] is not None:
+            return row[k]
+    return default
+
+
+def _normalize_answer(answer: Any) -> str:
+    if answer is None:
+        return ""
+    if isinstance(answer, list):
+        if not answer:
+            return ""
+        answer = answer[0]
+    return str(answer).strip()
+
+
+def _row_keys_hint(row: dict[str, Any]) -> str:
+    return ", ".join(sorted(str(k) for k in row.keys()))
+
+
 def _try_load_hf(split: str = "test", subset: str = "human"):
     try:
         from datasets import load_dataset
     except ImportError as e:
         raise RuntimeError(
             "HuggingFace `datasets` is not installed. "
-            "Install with: pip install datasets  "
-            "or use --source synthetic."
+            "Install with: pip install 'mrha[datasets]'  "
+            "or: pip install datasets  "
+            "Otherwise use --source synthetic."
         ) from e
-    try:
-        # ChartQA configs vary; try common patterns
+    errors: list[str] = []
+    # ChartQA configs vary across HF revisions; try common patterns.
+    attempts = [
+        ("ahmed-masry/ChartQA", {"split": split}),
+        ("ahmed-masry/ChartQA", {"name": subset, "split": split}),
+        ("ahmed-masry/ChartQA", {"name": "default", "split": split}),
+    ]
+    for repo, kwargs in attempts:
         try:
-            ds = load_dataset("ahmed-masry/ChartQA", split=split)
-        except Exception:
-            ds = load_dataset("ahmed-masry/ChartQA", subset, split=split)
-        return ds
-    except Exception as e:
-        raise RuntimeError(
-            f"Failed to download/load ahmed-masry/ChartQA ({e}). "
-            "If offline, use --source synthetic. "
-            "See scripts/05_prepare_datasets.py."
-        ) from e
-
-
-def _row_to_truth(row: dict[str, Any], seed: int) -> ChartTruth | None:
-    """Best-effort extract categories/values if present; else None."""
-    # Many ChartQA rows lack structured series; we store QA gold only.
-    return None
+            return load_dataset(repo, **kwargs)
+        except Exception as e:  # noqa: BLE001 — surface aggregated errors
+            errors.append(f"{repo} {kwargs}: {e}")
+    raise RuntimeError(
+        "Failed to download/load ahmed-masry/ChartQA.\n"
+        + "\n".join(f"  - {e}" for e in errors)
+        + "\nIf offline, use --source synthetic. "
+        "See scripts/05_prepare_datasets.py and DATASETS.md."
+    )
 
 
 def load_chartqa_items(
@@ -58,54 +90,73 @@ def load_chartqa_items(
     seed: int = 42,
     split: str = "test",
 ) -> list[ManifestItem]:
-    """Load up to ``n_items`` ChartQA human-split examples into ManifestItems.
+    """Load up to ``n_items`` ChartQA examples into ManifestItems.
 
-    Images are copied/saved under ``out_dir``. When structured truth is
-    unavailable, a stub truth JSON is written with the string gold answer in
-    metadata (oracle still uses answer_gold substring / Answer: parsing).
+    Images are saved under ``out_dir``. When structured truth is unavailable,
+    a stub truth JSON is written; oracle uses string ``answer_gold``.
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     ds = _try_load_hf(split=split)
-    # Filter human if column exists
-    rows = []
+
+    rows: list[dict[str, Any]] = []
     for i, row in enumerate(ds):
-        # human split heuristics
-        src = str(row.get("type") or row.get("split") or row.get("source") or "")
+        row = dict(row)
+        src = str(_first(row, _TYPE_KEYS, "") or "")
         if "human" in src.lower() or not src:
             rows.append(row)
-        if len(rows) >= n_items * 3:  # oversample then truncate
+        if len(rows) >= n_items * 3:
             break
     if not rows:
-        rows = list(ds)[: n_items * 2]
+        # Fall back to raw prefix of the split
+        for i, row in enumerate(ds):
+            rows.append(dict(row))
+            if len(rows) >= n_items * 2:
+                break
+    if not rows:
+        raise RuntimeError(
+            "ChartQA dataset loaded but yielded zero rows. "
+            f"split={split!r}. Check HF card / network."
+        )
     rows = rows[:n_items]
+
+    # Validate we can find question/answer on first row
+    sample = rows[0]
+    if _first(sample, _QUESTION_KEYS) is None:
+        raise RuntimeError(
+            "ChartQA row missing question field. "
+            f"Tried keys {_QUESTION_KEYS}. Available: {_row_keys_hint(sample)}"
+        )
+    if _first(sample, _ANSWER_KEYS) is None:
+        raise RuntimeError(
+            "ChartQA row missing answer/label field. "
+            f"Tried keys {_ANSWER_KEYS}. Available: {_row_keys_hint(sample)}"
+        )
 
     items: list[ManifestItem] = []
     for i, row in enumerate(rows):
         item_id = f"chartqa_{i:04d}"
-        question = str(row.get("query") or row.get("question") or "")
-        answer = row.get("label") or row.get("answers") or row.get("answer")
-        if isinstance(answer, list):
-            answer = answer[0] if answer else ""
-        answer_gold = str(answer)
+        question = str(_first(row, _QUESTION_KEYS, "") or "")
+        answer_gold = _normalize_answer(_first(row, _ANSWER_KEYS))
+        if not question:
+            raise RuntimeError(
+                f"Empty question for ChartQA row {i}. Keys: {_row_keys_hint(row)}"
+            )
 
         img_path = out_dir / f"{item_id}.png"
-        # Image may be PIL or path
-        image = row.get("image")
+        image = _first(row, _IMAGE_KEYS)
         if image is not None and hasattr(image, "save"):
             image.convert("RGB").save(img_path)
-        elif isinstance(image, str) and Path(image).is_file():
+        elif isinstance(image, (str, Path)) and Path(image).is_file():
             from shutil import copy2
 
-            copy2(image, img_path)
+            copy2(str(image), img_path)
         else:
-            # Placeholder blank if image missing
             from PIL import Image as PILImage
 
             PILImage.new("RGB", (400, 300), (240, 240, 240)).save(img_path)
 
-        # Stub truth — ChartQA often lacks executable series
         truth = ChartTruth(
             chart_type=ChartType.BAR,
             title=f"ChartQA {item_id}",
@@ -116,11 +167,10 @@ def load_chartqa_items(
         truth_path = out_dir / f"{item_id}_truth.json"
         save_truth(truth, truth_path)
 
-        # Guess question type
         qtype = QuestionType.MAX_CATEGORY
         anum = None
         try:
-            anum = float(str(answer_gold).replace(",", ""))
+            anum = float(str(answer_gold).replace(",", "").replace("%", ""))
             qtype = QuestionType.VALUE_OF
         except ValueError:
             pass
@@ -144,6 +194,8 @@ def load_chartqa_items(
                     "seed": seed + i,
                     "source": "chartqa",
                     "hf_dataset": "ahmed-masry/ChartQA",
+                    "hf_split": split,
+                    "row_keys": sorted(str(k) for k in row.keys()),
                     "note": "Structured series may be stubbed; gold from HF labels.",
                 },
             )
