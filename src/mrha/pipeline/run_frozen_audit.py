@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Callable
 
@@ -41,6 +42,95 @@ def default_proxies(
     return proxies
 
 
+def _load_completed_ids(raw_jsonl: Path, model_id: str) -> set[str]:
+    """Return item_ids already scored by this model_id in the raw stream file."""
+    if not raw_jsonl.exists():
+        return set()
+    done: set[str] = set()
+    with raw_jsonl.open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+                if obj.get("model_id") == model_id:
+                    done.add(obj["item_id"])
+            except json.JSONDecodeError:
+                pass  # partial write from a previous crash — skip
+    return done
+
+
+def finalize_audit(
+    raw_jsonl: Path,
+    results_dir: Path,
+    all_items: list[ManifestItem],
+    labels_path: Path | None,
+) -> list[AuditRecord]:
+    """Post-process a completed raw stream: add detector flags + write metrics.
+
+    Safe to call after the streaming loop finishes. Reads back the JSONL so
+    clean_map covers the full run, not just in-memory chunks.
+    """
+    records: list[AuditRecord] = []
+    with raw_jsonl.open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                records.append(AuditRecord.model_validate_json(line))
+            except Exception:
+                pass
+
+    clean_map = {
+        r.item_id: r.oracle_correct
+        for r in records
+        if r.attack == AttackFamily.CLEAN
+    }
+    item_by_id = {it.item_id: it for it in all_items}
+    for rec in records:
+        it = item_by_id.get(rec.item_id)
+        if it is not None:
+            rec.detector = detect_item(it, rec, clean_map)
+
+    # Rewrite with detector flags populated
+    with raw_jsonl.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(r.model_dump_json() + "\n")
+
+    # Symlink / copy to canonical audit_records.jsonl
+    canonical = results_dir / "audit_records.jsonl"
+    if raw_jsonl != canonical:
+        canonical.write_text(raw_jsonl.read_text(encoding="utf-8"), encoding="utf-8")
+
+    # Optional detector P/R
+    default_labels = Path("data/labels/detector_labels.jsonl")
+    lab_path = labels_path if labels_path else default_labels
+    pr = precision_recall_from_labels(records, lab_path)
+    if pr is None:
+        detector_pr_note = (
+            f"Detector P/R skipped — labels file not found at {lab_path}. "
+            "See data/labels/ format in README / REQUIRED_FROM_USER.md."
+        )
+    else:
+        detector_pr_note = None
+        (results_dir / "detector_precision_recall.json").write_text(
+            json.dumps(pr, indent=2), encoding="utf-8"
+        )
+
+    summary = compute_all(records)
+    if pr is None:
+        summary.notes.append(detector_pr_note)  # type: ignore[arg-type]
+    else:
+        summary.notes.append(
+            f"Detector P/R: precision={pr.get('precision')} recall={pr.get('recall')} "
+            f"(n_labeled={pr.get('n_labeled_matched')}); hold-out recommended."
+        )
+    write_metrics(summary, results_dir, records=records)
+    return records
+
+
 def run_audit(
     manifest_path: Path | str,
     client: VLMClient,
@@ -50,13 +140,19 @@ def run_audit(
     use_weak_vlm_client: bool = False,
     limit: int | None = None,
     labels_path: Path | str | None = None,
+    resume: bool = True,
 ) -> list[AuditRecord]:
-    """Score model on each manifest item; write audit JSONL + metrics stub.
+    """Score model on each manifest item; stream-write audit JSONL + metrics.
+
+    Streaming + resume
+    ------------------
+    Each record is appended to ``<results_dir>/audit_raw_<model_id>.jsonl``
+    immediately after scoring so progress survives process kills. On restart
+    with ``resume=True``, already-scored item_ids (same model_id) are skipped.
+    Detector flags and metrics are computed in a final pass over the full file
+    so ``clean_map`` is always built from the complete dataset.
 
     Does not invent metrics — only writes what was measured.
-
-    ``weak_vlm_judge`` runs only when ``judge_client`` is set, or when
-    ``use_weak_vlm_client=True`` (uses the same ``client`` with the judge prompt).
     """
     items = read_manifest(manifest_path)
     if limit is not None:
@@ -70,16 +166,34 @@ def run_audit(
 
     oracle = ChartOracle()
     proxies = default_proxies(jclient)
-    records: list[AuditRecord] = []
 
-    for item in items:
-        prompt = build_prompt(item.question, item.caption, item.prompt_prefix)
-        response = client.answer(item.image_path, prompt)
-        ok = oracle.score(response, item)
-        proxy_scores = {name: fn(response, item) for name, fn in proxies.items()}
-        protocol = getattr(item, "protocol", AttackProtocol.INVARIANCE)
-        records.append(
-            AuditRecord(
+    # Use a model-specific stream file to avoid mixing stale runs
+    safe_model_id = client.model_id.replace("/", "_").replace(":", "_")
+    raw_jsonl = results_dir / f"audit_raw_{safe_model_id}.jsonl"
+
+    # Resume: load already-completed item_ids for this model
+    done_ids: set[str] = set()
+    if resume:
+        done_ids = _load_completed_ids(raw_jsonl, client.model_id)
+        if done_ids:
+            print(
+                f"[resume] {len(done_ids)} items already scored — skipping.",
+                file=sys.stderr,
+                flush=True,
+            )
+
+    remaining = [it for it in items if it.item_id not in done_ids]
+    total = len(items)
+    completed = len(done_ids)
+
+    with raw_jsonl.open("a", encoding="utf-8") as stream:
+        for i, item in enumerate(remaining, start=1):
+            prompt = build_prompt(item.question, item.caption, item.prompt_prefix)
+            response = client.answer(item.image_path, prompt)
+            ok = oracle.score(response, item)
+            proxy_scores = {name: fn(response, item) for name, fn in proxies.items()}
+            protocol = getattr(item, "protocol", AttackProtocol.INVARIANCE)
+            rec = AuditRecord(
                 item_id=item.item_id,
                 attack=item.attack,
                 protocol=protocol,
@@ -94,53 +208,26 @@ def run_audit(
                     "protocol": protocol.value if protocol else None,
                 },
             )
-        )
+            stream.write(rec.model_dump_json() + "\n")
+            stream.flush()
+            completed += 1
+            if i % 10 == 0 or i == len(remaining):
+                print(
+                    f"[audit] {completed}/{total} scored",
+                    file=sys.stderr,
+                    flush=True,
+                )
 
-    clean_map = {
-        r.item_id: r.oracle_correct
-        for r in records
-        if r.attack == AttackFamily.CLEAN
-    }
-    item_by_id = {it.item_id: it for it in items}
-    for rec in records:
-        it = item_by_id[rec.item_id]
-        rec.detector = detect_item(it, rec, clean_map)
-
-    # Optional detector P/R
-    default_labels = Path("data/labels/detector_labels.jsonl")
-    lab_path = Path(labels_path) if labels_path else default_labels
-    pr = precision_recall_from_labels(records, lab_path)
-    if pr is None:
-        detector_pr_note = (
-            f"Detector P/R skipped — labels file not found at {lab_path}. "
-            "See data/labels/ format in README / REQUIRED_FROM_USER.md."
-        )
-    else:
-        detector_pr_note = None
-        (results_dir / "detector_precision_recall.json").write_text(
-            json.dumps(pr, indent=2), encoding="utf-8"
-        )
-
-    out_jsonl = results_dir / "audit_records.jsonl"
-    with out_jsonl.open("w", encoding="utf-8") as f:
-        for r in records:
-            f.write(r.model_dump_json() + "\n")
-
-    summary = compute_all(records)
-    if detector_pr_note:
-        summary.notes.append(detector_pr_note)
-    elif pr is not None:
-        summary.notes.append(
-            f"Detector P/R: precision={pr.get('precision')} recall={pr.get('recall')} "
-            f"(n_labeled={pr.get('n_labeled_matched')}); hold-out recommended."
-        )
-    write_metrics(summary, results_dir, records=records)
+    # Final pass: build clean_map from full file, add detector flags, write metrics
+    lab_path = Path(labels_path) if labels_path else None
+    records = finalize_audit(raw_jsonl, results_dir, items, lab_path)
 
     meta = {
         "model_id": client.model_id,
         "n_records": len(records),
         "manifest": str(manifest_path),
-        "audit_records": str(out_jsonl),
+        "audit_records": str(results_dir / "audit_records.jsonl"),
+        "raw_stream": str(raw_jsonl),
         "judge_enabled": jclient is not None,
         "proxies": list(proxies.keys()),
     }

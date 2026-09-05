@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run frozen VLM audit (MLX on Apple Silicon, or API stub)."""
+"""Run frozen VLM audit (MLX on Apple Silicon, Anthropic Claude, or API stub)."""
 
 from __future__ import annotations
 
@@ -23,6 +23,10 @@ def _make_client(backend: str, model_id: str):
         from mrha.models.api_vlm import APIVLMClient
 
         return APIVLMClient(model_id=model_id)
+    if backend == "anthropic":
+        from mrha.models.anthropic_vlm import AnthropicVLMClient
+
+        return AnthropicVLMClient(model_id=model_id)
     if backend == "echo":
         from mrha.pipeline.run_frozen_audit import EchoVLM
 
@@ -33,14 +37,14 @@ def _make_client(backend: str, model_id: str):
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=ROOT / "configs" / "default.yaml")
-    parser.add_argument("--backend", choices=["mlx", "api", "echo"], default=None)
+    parser.add_argument("--backend", choices=["mlx", "api", "anthropic", "echo"], default=None)
     parser.add_argument("--model-id", type=str, default=None)
     parser.add_argument("--manifest", type=Path, default=None)
     parser.add_argument("--results-dir", type=Path, default=None)
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument(
         "--judge-backend",
-        choices=["mlx", "api", "echo", "same"],
+        choices=["mlx", "api", "anthropic", "echo", "same"],
         default=None,
         help="Enable weak_vlm_judge. 'same' reuses the audit model with the judge prompt.",
     )
@@ -50,6 +54,12 @@ def main() -> None:
         type=Path,
         default=None,
         help="Optional detector labels JSONL for precision/recall.",
+    )
+    parser.add_argument(
+        "--no-resume",
+        action="store_true",
+        default=False,
+        help="Ignore any existing progress and start from scratch.",
     )
     args = parser.parse_args()
 
@@ -85,7 +95,7 @@ def main() -> None:
     use_same = False
     if judge_backend in ("same", True):
         use_same = True
-    elif judge_backend in ("mlx", "api", "echo"):
+    elif judge_backend in ("mlx", "api", "anthropic", "echo"):
         jid = args.judge_model_id or (cfg.get("judge") or {}).get("id") or model_id
         judge_client = _make_client(judge_backend, jid)
 
@@ -102,6 +112,7 @@ def main() -> None:
         judge_client=judge_client,
         use_weak_vlm_client=use_same,
         labels_path=labels,
+        resume=not args.no_resume,
     )
     print(f"Audited {len(records)} items → {results}")
 

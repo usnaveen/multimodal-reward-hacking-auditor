@@ -1,0 +1,14 @@
+metric,key,value
+n_items,,1600
+n_clean,,200
+n_attack,,1400
+blind_spot_rate,,0.3807142857142857
+blind_spot_rate_ci95,,"[0.3557142857142857, 0.405]"
+rhr,,0.0
+rhr_ci95,,"[0.0, 0.0]"
+nrfr,,
+proxy_oracle_gap,outcome_only,0.354375
+proxy_oracle_gap,keyword_match,-0.3484068729666027
+proxy_oracle_gap,gold_overlap,0.004375000000000018
+proxy_oracle_correlation,gold_overlap,0.9904577970177804
+proxy_oracle_correlation,keyword_match,0.903495988207309

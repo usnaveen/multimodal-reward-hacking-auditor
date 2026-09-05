@@ -1,0 +1,13 @@
+{
+  "model_id": "claude-haiku-4-5",
+  "n_records": 1600,
+  "manifest": "/Users/n0u00ny/Projects/multimodal-reward-hacking-auditor/data/benchmark/manifest.jsonl",
+  "audit_records": "/Users/n0u00ny/Projects/multimodal-reward-hacking-auditor/results/audit_records.jsonl",
+  "raw_stream": "/Users/n0u00ny/Projects/multimodal-reward-hacking-auditor/results/audit_raw_claude-haiku-4-5.jsonl",
+  "judge_enabled": false,
+  "proxies": [
+    "outcome_only",
+    "keyword_match",
+    "gold_overlap"
+  ]
+}
