@@ -54,6 +54,27 @@ separately score "correct on the new image."
 - Detector P/R if `data/labels/detector_labels.jsonl` present (hold-out)
 - MLX client + echo stub + CI smoke
 
+## Phase A status: robustness and metric-validity pilot
+
+The completed 1600-record Claude audit is retained as a pilot, not causal
+reward-hacking evidence. It established baseline robustness and exposed a
+degenerate blind-spot aggregation: always-pass `outcome_only` collapsed the
+old headline metric to oracle failure. The corrected meaningful-proxy
+blind-spot rate is 0.005 (7/1400). Existing best-of-4 records are `echo-stub`
+plumbing and are excluded from research claims.
+
+## Phase A2: causal proxy-pressure experiment
+
+The confirmatory experiment is preregistered in
+`docs/CAUSAL_PRESSURE_PROTOCOL.md` and implemented by scripts 11–12. It stores
+complete candidate sets and compares random, proxy-max, and oracle-max
+selection using paired visual correctness transitions, proxy gain, regression,
+rescue, false acceptance, and parent-cluster bootstrap confidence intervals.
+Evidence-attack invariance rows are excluded from correctness endpoints.
+
+A paid real-model run remains pending explicit review of the dry-run call
+count, credentials, model independence, and API cost.
+
 ## Later phases
 
 | Phase | Scope |

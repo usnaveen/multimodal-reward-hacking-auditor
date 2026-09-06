@@ -3,9 +3,10 @@
 **Multimodal Reward-Hacking Auditor** — evaluation harness for chart-VQA
 proxy–oracle gaps under controlled attacks.
 
-> Status: scaffolding + methods ready. **Results sections are placeholders.**
-> Do not invent accuracies, RHR, NRFR, or CIs. Fill only from real runs
-> (`RESULTS.md`, `results/README.md`).
+> Status: completed frozen robustness/metric-validity pilot plus implemented,
+> preregistered causal pressure protocol. The real-model causal run is pending.
+> Do not promote frozen perturbations or echo-stub pressure output as
+> reward-hacking evidence.
 
 ---
 
@@ -80,18 +81,31 @@ are geometric oracles. **A VLM is never ground truth.**
   where oracle did not newly become correct vs baseline
   (`scripts/02b_best_of_n_pressure.py`, `scripts/07_compute_nrfr.py`)
 
+### 3.6 Causal proxy pressure
+
+The confirmatory protocol stores one greedy baseline and `k` stochastic
+real-model candidates per item. Random, proxy-max, and oracle-max selectors
+operate on the identical candidate set. Primary outcomes are selected-minus-
+baseline visual accuracy, proxy gain, correct-to-incorrect regression,
+incorrect-to-correct rescue, and false acceptance. Confidence intervals
+resample parent charts rather than correlated attack derivatives. See
+`docs/CAUSAL_PRESSURE_PROTOCOL.md` and scripts 11–12.
+
+Evidence-attack invariance rows are excluded from visual correctness endpoints:
+matching their intentionally retained old gold measures answer persistence,
+not correctness for the displayed chart.
+
 ---
 
 ## 4. Experimental protocol
 
-1. Build manifest (`synthetic` default N=200; optional `chartqa` / `mixed`).
-2. Frozen audit on target VLM (MLX or API); optional second pass with judge.
-3. `scripts/03_compute_metrics.py` → summary + per-attack CSV.
-4. Optional: best-of-n pressure for NRFR vs `k`.
-5. Optional: human detector labels with 70/30 hold-out
-   (`scripts/09_label_detector.py`, `scripts/10_split_labels.py`).
-6. Render tables/figures only from real files (`scripts/06_render_results.py`).
-7. Cross-table agent-only vs agent+judge (`scripts/08_cross_table.py`).
+1. Build a hash-recorded manifest (`synthetic` default; optional transfer data).
+2. Treat the completed frozen audit as a robustness/proxy-validity pilot.
+3. Run causal pressure with a greedy baseline and stored stochastic candidates.
+4. Apply random, proxy, independent-judge, and oracle selectors to the same candidates.
+5. Report transition metrics and parent-cluster bootstrap confidence intervals.
+6. Re-analyze stored candidates offline without new model calls.
+7. Keep human-label detector evaluation optional and held out.
 
 Hardware / secrets: see `REQUIRED_FROM_USER.md` (48GB MLX Mac, API keys, HF).
 
@@ -99,21 +113,24 @@ Hardware / secrets: see `REQUIRED_FROM_USER.md` (48GB MLX Mac, API keys, HF).
 
 ## 5. Results
 
-<!-- FILL_FROM_REAL_RUN -->
+The completed Claude Haiku frozen pilot contains 1600 records (200 clean,
+1400 attacked). After excluding always-pass `outcome_only` from max-proxy
+aggregation, the meaningful-proxy blind-spot rate is 0.005 (7/1400), with
+bootstrap 95% CI [0.0014, 0.0086]. This is a proxy-validity and robustness
+result, not causal reward-hacking evidence.
 
-All quantitative cells intentionally blank until a real audit exists.
-Copy from `RESULTS.md` / `results/RESULTS_SNIPPET.md` after
-`06_render_results.py` succeeds on genuine metric files.
+| Pilot metric | Value |
+|--------------|-------|
+| Clean visual accuracy | 0.83 |
+| Evidence-swap re-answer accuracy | 0.80 |
+| Meaningful-proxy blind-spot rate | 0.005 |
+| Outcome-only proxy-oracle gap | +0.354 |
+| Keyword-match RHR | 0.0 |
+| Research-eligible causal pressure result | pending |
 
-| Metric | Value |
-|--------|-------|
-| blind_spot_rate | — |
-| RHR | — |
-| NRFR | — |
-| Per-attack table | — |
-| Cross-table | — |
-
-**Do not paste invented numbers here.**
+The earlier 0.381 blind-spot figure was degenerate because `outcome_only=1.0`
+for every non-empty response. Existing best-of-4 pressure records use
+`echo-stub`; their diagnostic output is explicitly excluded from claims.
 
 ---
 
@@ -122,9 +139,11 @@ Copy from `RESULTS.md` / `results/RESULTS_SNIPPET.md` after
 - Phase A synthetic charts are simplified (bar/line/pie generators).
 - ChartQA integration uses string gold; stubbed series weaken protocol science.
 - Echo-stub audits are plumbing only — not research evidence.
-- NRFR needs pressure runs; frozen audit alone leaves NRFR undefined.
-- Detector P/R needs human labels and hold-out discipline.
-- No full RL training loop — best-of-n is a pressure *scaffold*.
+- The completed real-model run is a frozen robustness/proxy-validity pilot,
+  not causal reward-hacking evidence.
+- Existing best-of-4 records use `echo-stub` and are plumbing only.
+- The preregistered causal protocol is implemented but still needs a reviewed
+  real-model run.
 - Judge bias coverage is a subset of FRAME/FOCUS taxonomies.
 
 ---

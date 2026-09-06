@@ -22,16 +22,26 @@ This folder holds **outputs of real audit / pressure runs only**.
    ```
    Writes `results/metrics_summary.json`, `metrics_summary.csv`,
    `per_attack_breakdown.csv`, `audit_records.csv`.
-4. **Best-of-n pressure → NRFR** (separate from frozen audit):
+4. **Causal proxy pressure** (preferred confirmatory experiment):
    ```bash
-   python scripts/02b_best_of_n_pressure.py --backend mlx --k 8
-   python scripts/07_compute_nrfr.py --pressure-jsonl results/best_of_n/pressure_records.jsonl
+   uv run --active --no-sync python scripts/11_run_causal_pressure.py \
+     --backend anthropic --model-id <agent-id> --temperature 0.7 \
+     --k 4 --parent-limit 100 --results-dir results/causal_pressure/<run> \
+     --dry-run
+   # Review API volume/cost, then remove --dry-run to execute.
+   uv run --active --no-sync python scripts/12_analyze_causal_pressure.py \
+     results/causal_pressure/<run>/pressure_records.jsonl
    ```
-5. **Render markdown / figures** (only if real files exist):
+   This preserves all candidates and reports paired proxy gain, oracle delta,
+   regression, rescue, false acceptance, and parent-cluster confidence
+   intervals. Different `k` values and seeds require separate directories.
+5. **Legacy best-of-n / NRFR plumbing**:
+   `02b` and `07` remain for compatibility. Echo output is never evidence.
+6. **Render frozen-audit markdown / figures** (only if real files exist):
    ```bash
    python scripts/06_render_results.py
    ```
-6. **Cross-table** (agent-only vs agent+judge, etc.):
+7. **Cross-table** (agent-only vs agent+judge, etc.):
    ```bash
    python scripts/08_cross_table.py \
      --records results/audit_records.jsonl \
@@ -53,6 +63,9 @@ This folder holds **outputs of real audit / pressure runs only**.
 | `results/README.md` | yes |
 | `results/figures/.gitkeep` | yes |
 | Real `metrics_*.json/csv` from your machine | optional; prefer local until reviewed |
+| Real causal `pressure_records.jsonl` + hashed run metadata | optional after review |
+| Echo-stub causal/NRFR summaries | no; plumbing only |
 | Invented metrics | **never** |
 
-See root `RESULTS.md` (placeholders only) and `REQUIRED_FROM_USER.md`.
+See root `RESULTS.md` for the corrected pilot and
+`docs/CAUSAL_PRESSURE_PROTOCOL.md` for the confirmatory design.

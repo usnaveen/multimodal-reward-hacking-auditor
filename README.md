@@ -125,8 +125,17 @@ python scripts/02_run_audit.py --backend echo --limit 5          # plumbing
 python scripts/02_run_audit.py --backend mlx --model-id mlx-community/Qwen2-VL-7B-Instruct-4bit
 python scripts/02_run_audit.py --backend mlx --judge-backend same  # adds weak_vlm_judge
 
-# Best-of-n pressure → NRFR fields
+# Legacy best-of-n plumbing (echo output is never research evidence)
 python scripts/02b_best_of_n_pressure.py --backend echo --k 4
+
+# Causal pressure smoke: paired selectors, complete candidates, stub-gated
+uv run --active --no-sync python scripts/11_run_causal_pressure.py \
+  --backend echo --model-id echo-stub --k 4 --parent-limit 2 \
+  --results-dir results/causal_pressure_smoke
+
+# Re-analyze stored candidates without new model/API calls
+uv run --active --no-sync python scripts/12_analyze_causal_pressure.py \
+  results/causal_pressure_smoke/pressure_records.jsonl
 
 # Metrics recompute
 python scripts/03_compute_metrics.py
@@ -147,7 +156,24 @@ python scripts/10_split_labels.py --train-frac 0.7
 
 ---
 
-## 6. Attacks & proxies
+## 6. Causal pressure experiment
+
+The frozen audit is a robustness/proxy-calibration pilot, not causal evidence
+of reward hacking. The confirmatory experiment generates and preserves `k`
+real-model candidates, then applies random, proxy, and oracle selectors to the
+same candidate set. It reports proxy gain, paired visual-oracle delta,
+correct-to-incorrect regression, incorrect-to-correct rescue, false acceptance,
+and parent-cluster bootstrap confidence intervals.
+
+Evidence-attack `invariance` rows are excluded from visual-correctness
+endpoints because they intentionally retain old gold. `echo-stub` runs are
+always marked non-research. See
+[`docs/CAUSAL_PRESSURE_PROTOCOL.md`](docs/CAUSAL_PRESSURE_PROTOCOL.md) for the
+predeclared hypothesis, controls, eligibility rules, and real-run commands.
+
+---
+
+## 7. Attacks & proxies
 
 | Attack | Idea |
 |--------|------|
@@ -173,18 +199,17 @@ python scripts/10_split_labels.py --train-frac 0.7
 
 ---
 
-## 7. Layout & docs
+## 8. Layout & docs
 
 ```
 src/mrha/           # package (datasets/, attacks/, proxies/, …)
-scripts/            # 01–10: build, audit, pressure, metrics, smoke, data,
-                    #        render, nrfr, cross_table, labels, split
+scripts/            # build/audit plus causal pressure runner + offline analysis
 configs/            # default.yaml, chartqa_smoke.yaml
 data/benchmark/     # generated
 data/labels/        # detector labels + hold-out (see data/labels/README.md)
 results/            # audit outputs (never invent) — see results/README.md
 docs/               # TECH_REPORT.md, POSITIONING.md
-RESULTS.md          # placeholders only (<!-- FILL_FROM_REAL_RUN -->)
+RESULTS.md          # real frozen-audit results + explicit limitations
 IMPROVEMENT_LOG.md  # Round 1+ interview fixes
 INTERVIEW_PREP.md
 DATASETS.md
@@ -195,6 +220,7 @@ PLAN.md
 
 | Doc | Role |
 |-----|------|
+| [docs/CAUSAL_PRESSURE_PROTOCOL.md](docs/CAUSAL_PRESSURE_PROTOCOL.md) | Preregistered causal hypothesis, controls, metrics, commands |
 | [INTERVIEW_PREP.md](INTERVIEW_PREP.md) | Concepts, papers, talking points |
 | [IMPROVEMENT_LOG.md](IMPROVEMENT_LOG.md) | Interviewer critiques → fixes |
 | [RESULTS.md](RESULTS.md) | Result placeholders (no fake numbers) |

@@ -23,6 +23,7 @@ class APIVLMClient:
         api_key: str | None = None,
         base_url: str = "https://api.openai.com/v1",
         max_tokens: int = 128,
+        temperature: float = 0.0,
     ) -> None:
         self.model_id = model_id
         self.api_key = api_key or os.environ.get("MRHA_API_KEY") or os.environ.get(
@@ -30,6 +31,7 @@ class APIVLMClient:
         )
         self.base_url = base_url.rstrip("/")
         self.max_tokens = max_tokens
+        self.temperature = temperature
 
     def answer(self, image_path: str, prompt: str) -> str:
         """Call chat completions with a data-URL image."""
@@ -43,6 +45,7 @@ class APIVLMClient:
         payload = {
             "model": self.model_id,
             "max_tokens": self.max_tokens,
+            "temperature": self.temperature,
             "messages": [
                 {
                     "role": "user",
