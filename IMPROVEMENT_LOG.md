@@ -1,5 +1,34 @@
 # Improvement Log
 
+## Round 2 — Metric validity correction (2026-09-06)
+
+### Critique
+
+`blind_spot_rate` used the maximum over every proxy, including the
+always-pass `outcome_only`. Because all 1600 model responses were non-empty,
+the metric collapsed to oracle failure (`1 - oracle_acc`) and added no proxy
+blindness information.
+
+### Fix
+
+- Excluded `outcome_only` from blind-spot detection while retaining its
+  standalone proxy-oracle gap as a diagnostic baseline.
+- Centralized meaningful-proxy selection in `_meaningful_proxy_max` and reused
+  it in the overall rate, per-attack breakdown, and bootstrap CI.
+- Added regression tests preventing trivial proxies from contributing.
+- Recomputed all metrics from the existing 1600 real audit records; no model
+  rerun or API calls were needed.
+- Added the completed best-of-4 pressure result as a separate NRFR artifact.
+
+### Corrected results
+
+- Meaningful-proxy blind-spot rate: **0.005** (7/1400), bootstrap 95% CI
+  [0.0014, 0.0086], replacing the degenerate 0.381 value.
+- Best-of-4 NRFR: **0.128** (seed 0; 1400 proxy-improved records).
+- Frozen-audit `metrics_summary.json` keeps `nrfr: null` by design because
+  frozen records do not carry pressure metadata; `results/nrfr_summary.json`
+  is the authoritative pressure-run artifact.
+
 ## Round 1 — Interviewer critique (2026-09-04)
 
 ### Critiques addressed this round

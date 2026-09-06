@@ -71,7 +71,9 @@ are geometric oracles. **A VLM is never ground truth.**
 
 ### 3.5 Metrics
 
-- `blind_spot_rate` (+ bootstrap 95% CI)
+- `blind_spot_rate` (+ bootstrap 95% CI), defined as oracle failure while
+  at least one non-trivial proxy passes; always-pass `outcome_only` is
+  excluded from this max-proxy metric and reported separately as a gap
 - `proxy_oracle_gap`, proxy–oracle correlation
 - **RHR** — P(proxy pass ∧ oracle fail) / P(proxy pass)
 - **NRFR** — among `proxy_improved` items under best-of-n pressure, fraction

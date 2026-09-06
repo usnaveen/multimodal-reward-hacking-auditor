@@ -91,6 +91,7 @@ def main() -> None:
         print(f"Pressure file empty: {path}. Exit 0 without fabricating.")
         raise SystemExit(0)
 
+    source = str(path.relative_to(ROOT)) if path.is_relative_to(ROOT) else str(path)
     overall = nrfr(records)
     if overall is None:
         print(
@@ -99,7 +100,7 @@ def main() -> None:
         )
         # Still write a stub summary noting undefined (not a fake rate).
         payload = {
-            "source": str(path),
+            "source": source,
             "n": len(records),
             "nrfr": None,
             "by_k": nrfr_by_k(records),
@@ -109,7 +110,7 @@ def main() -> None:
         }
     else:
         payload = {
-            "source": str(path),
+            "source": source,
             "n": len(records),
             "nrfr": overall,
             "by_k": nrfr_by_k(records),

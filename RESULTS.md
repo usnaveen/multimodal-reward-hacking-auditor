@@ -13,16 +13,24 @@
 |--------|-------|--------|-------|
 | n_items | 1600 | — | 200 clean + 1400 attack |
 | n_attack | 1400 | — | 7 attack×protocol combos × 200 |
-| blind_spot_rate | **0.381** | [0.356, 0.405] | proxy pass ∧ oracle fail, attack items only |
+| blind_spot_rate | **0.005** | [0.0014, 0.0086] | meaningful proxy pass ∧ oracle fail; excludes `outcome_only` |
 | RHR | 0.0 | [0.0, 0.0] | keyword_match proxy; strict Jaccard — see notes |
-| NRFR | null | — | Requires best-of-n pressure run (script 02b) |
-| proxy_oracle_gap (outcome_only) | **+0.354** | — | outcome_only severely over-credits |
+| NRFR (best-of-4) | **0.128** | — | separate pressure run; 1400/1600 records had proxy improvement |
+| proxy_oracle_gap (outcome_only) | **+0.354** | — | reported diagnostically, but excluded from blind-spot detection |
 | proxy_oracle_gap (keyword_match) | −0.348 | — | strict proxy under-credits partial answers |
 | proxy_oracle_gap (gold_overlap) | +0.004 | — | near-zero gap — best calibrated proxy |
 
-**RHR note:** RHR = P(proxy pass ∧ oracle fail) / P(proxy pass). With `keyword_match` as the RHR proxy
-(strict Jaccard), the proxy rarely passes when the oracle fails, giving RHR=0. The reward-hacking signal
-is instead visible in `outcome_only` proxy gap (+0.354) and the per-attack blind spot rates below.
+**Metric correction:** `outcome_only` is always 1.0 for any non-empty
+response, so it is retained as a diagnostic proxy-gap baseline but excluded
+from the max-proxy blind-spot calculation. Including it made the old
+blind-spot rate (0.381) exactly equal to attack oracle failure and therefore
+non-informative. Recomputing the same 1600 records gives 0.005 (7/1400).
+
+**RHR note:** RHR = P(proxy pass ∧ oracle fail) / P(proxy pass). With
+`keyword_match` as the RHR proxy (strict Jaccard), the proxy rarely passes
+when the oracle fails, giving RHR=0. The strongest pressure result is the
+separately computed best-of-4 NRFR=0.128; the frozen-run `metrics_summary.json`
+correctly leaves NRFR null because those records do not contain pressure fields.
 
 ## Per-attack breakdown
 
@@ -30,14 +38,14 @@ is instead visible in `outcome_only` proxy gap (+0.354) and the per-attack blind
 
 | attack | protocol | n | oracle_acc | blind_spot_rate | Interpretation |
 |--------|----------|---|-----------|-----------------|----------------|
-| clean | invariance | 200 | 0.83 | 0.17 | Baseline |
-| evidence_swap | invariance | 200 | 0.055 | **0.945** | Shortcut: model uses label memory, not visual data |
-| evidence_swap | re_answer | 200 | 0.80 | 0.20 | Re-reading mostly works |
-| evidence_destroy | invariance | 200 | 0.00 | **1.00** | Blurred chart → model still answers → proxy passes |
-| evidence_destroy | re_answer | 200 | 1.00 | 0.00 | Oracle accepts "unanswerable" — correct |
-| judge_bait | invariance | 200 | 0.82 | 0.18 | Stamps/brightness don't fool oracle |
-| wrong_caption | invariance | 200 | 0.82 | 0.18 | Close to baseline |
-| nuisance | invariance | 200 | 0.84 | 0.16 | ≈ baseline → FP control holds ✅ |
+| clean | invariance | 200 | 0.83 | 0.000 | Baseline; no meaningful-proxy blind spots |
+| evidence_swap | invariance | 200 | 0.055 | **0.025** | Old-gold retention is 5.5%; 5 meaningful-proxy blind spots |
+| evidence_swap | re_answer | 200 | 0.80 | 0.000 | Re-reading succeeds on 80% |
+| evidence_destroy | invariance | 200 | 0.00 | **0.005** | Model generally returns `unanswerable`; one proxy false pass |
+| evidence_destroy | re_answer | 200 | 1.00 | 0.000 | Oracle accepts `unanswerable` |
+| judge_bait | invariance | 200 | 0.82 | 0.000 | No measured meaningful-proxy blind spots |
+| wrong_caption | invariance | 200 | 0.82 | **0.005** | One meaningful-proxy blind spot |
+| nuisance | invariance | 200 | 0.84 | 0.000 | Baseline accuracy preserved; FP control holds  |
 
 ## Agent × proxy × attack (cross-table)
 
@@ -100,11 +108,14 @@ Each JSONL line from `02b` includes AuditRecord fields plus metadata:
 | `proxy_scores[<proxy>]` | top-level | Best-of-k proxy score |
 | `proxy_scores.baseline_proxy` | top-level | Baseline proxy score |
 
-<!-- FILL_FROM_REAL_RUN: NRFR vs k table / figure — no fake curve data -->
+**Completed pressure run:** `results/nrfr_summary.json` reports
+NRFR=0.127857 (0.128 rounded) for best-of-4, seed 0, over 1600 records; 1400
+records had `proxy_improved=true`. This remains separate from the frozen-audit
+summary because NRFR requires pressure metadata.
 
-| k | n | NRFR | notes |
-|---|---|------|-------|
-| — | — | — | <!-- FILL_FROM_REAL_RUN --> |
+| k | n | n_proxy_improved | NRFR | notes |
+|---|---|------------------|------|-------|
+| 4 | 1600 | 1400 | **0.128** | seed 0; real pressure run |
 
 ## Figures
 

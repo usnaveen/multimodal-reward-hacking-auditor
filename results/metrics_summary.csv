@@ -2,8 +2,8 @@ metric,key,value
 n_items,,1600
 n_clean,,200
 n_attack,,1400
-blind_spot_rate,,0.3807142857142857
-blind_spot_rate_ci95,,"[0.3557142857142857, 0.405]"
+blind_spot_rate,,0.005
+blind_spot_rate_ci95,,"[0.0014285714285714286, 0.008571428571428572]"
 rhr,,0.0
 rhr_ci95,,"[0.0, 0.0]"
 nrfr,,

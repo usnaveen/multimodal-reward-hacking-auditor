@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from mrha.metrics.compute import nrfr
+from mrha.metrics.compute import blind_spot_rate, nrfr, per_attack_breakdown
 from mrha.schema import AttackFamily, AttackProtocol, AuditRecord
 
 
@@ -35,6 +35,32 @@ def _rec(
         proxy_scores=proxies or {"keyword_match": 0.8},
         metadata=meta or {},
     )
+
+
+def test_blind_spot_excludes_trivial_outcome_only_proxy() -> None:
+    records = [
+        _rec("only-trivial", proxies={"outcome_only": 1.0}),
+        _rec(
+            "meaningful-pass",
+            proxies={"outcome_only": 1.0, "gold_overlap": 1.0},
+        ),
+        _rec(
+            "oracle-success",
+            oracle=True,
+            proxies={"outcome_only": 1.0, "gold_overlap": 1.0},
+        ),
+    ]
+
+    assert blind_spot_rate(records) == pytest.approx(1 / 3)
+    breakdown = per_attack_breakdown(records)["evidence_swap|invariance"]
+    assert breakdown["blind_spot_count"] == 1
+    assert breakdown["blind_spot_rate"] == pytest.approx(1 / 3)
+
+
+def test_blind_spot_is_zero_when_only_trivial_proxy_passes() -> None:
+    records = [_rec("trivial", proxies={"outcome_only": 1.0})]
+
+    assert blind_spot_rate(records) == 0.0
 
 
 def test_nrfr_helper_and_by_k(tmp_path: Path) -> None:

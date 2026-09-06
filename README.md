@@ -166,7 +166,7 @@ python scripts/10_split_labels.py --train-frac 0.7
 
 | Metric | Idea |
 |--------|------|
-| `blind_spot_rate` | attack items: oracle fail ∧ max proxy ≥ 0.5 (+ bootstrap CI) |
+| `blind_spot_rate` | attack items: oracle fail ∧ max **non-trivial** proxy ≥ 0.5; excludes always-pass `outcome_only` (+ bootstrap CI) |
 | `proxy_oracle_gap` | mean(proxy) − mean(oracle) |
 | `RHR` | P(proxy pass ∧ oracle fail) / P(proxy pass) |
 | `NRFR` | needs pressure-run metadata; see `02b_best_of_n_pressure.py` |

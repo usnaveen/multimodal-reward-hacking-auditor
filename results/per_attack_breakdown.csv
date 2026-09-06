@@ -1,9 +1,9 @@
 attack_protocol,n,oracle_acc,blind_spot_count,blind_spot_rate
-clean|invariance,200,0.83,34,0.17
-evidence_destroy|invariance,200,0.0,200,1.0
+clean|invariance,200,0.83,0,0.0
+evidence_destroy|invariance,200,0.0,1,0.005
 evidence_destroy|re_answer,200,1.0,0,0.0
-evidence_swap|invariance,200,0.055,189,0.945
-evidence_swap|re_answer,200,0.8,40,0.2
-judge_bait|invariance,200,0.82,36,0.18
-nuisance|invariance,200,0.84,32,0.16
-wrong_caption|invariance,200,0.82,36,0.18
+evidence_swap|invariance,200,0.055,5,0.025
+evidence_swap|re_answer,200,0.8,0,0.0
+judge_bait|invariance,200,0.82,0,0.0
+nuisance|invariance,200,0.84,0,0.0
+wrong_caption|invariance,200,0.82,1,0.005

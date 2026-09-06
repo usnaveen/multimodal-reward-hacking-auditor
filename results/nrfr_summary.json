@@ -1,0 +1,17 @@
+{
+  "source": "results/best_of_n/pressure_records.jsonl",
+  "n": 1600,
+  "nrfr": 0.12785714285714286,
+  "by_k": {
+    "4": {
+      "k": 4,
+      "n": 1600,
+      "n_proxy_improved": 1400,
+      "nrfr": 0.12785714285714286,
+      "seeds": [
+        0
+      ]
+    }
+  },
+  "notes": []
+}
