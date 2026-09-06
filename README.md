@@ -133,7 +133,13 @@ uv run --active --no-sync python scripts/11_run_causal_pressure.py \
   --backend echo --model-id echo-stub --k 4 --parent-limit 2 \
   --results-dir results/causal_pressure_smoke
 
-# Re-analyze stored candidates without new model/API calls
+# Local real-model dry run through Ollama (no paid API calls)
+uv run --active --no-sync python scripts/11_run_causal_pressure.py \
+  --backend ollama --model-id muse-glimmer:30b-mlx \
+  --temperature 0.7 --max-tokens 256 --k 4 --parent-limit 100 \
+  --results-dir results/causal_pressure/muse-glimmer-k4-seed0 --dry-run
+
+# Re-analyze stored candidates without new model calls
 uv run --active --no-sync python scripts/12_analyze_causal_pressure.py \
   results/causal_pressure_smoke/pressure_records.jsonl
 

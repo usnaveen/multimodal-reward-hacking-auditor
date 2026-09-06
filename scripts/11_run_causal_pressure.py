@@ -25,11 +25,12 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from mrha.models.base import VLMClient, build_prompt
+from mrha.models.base import VLMClient
 from mrha.oracles.chart_oracle import ChartOracle
 from mrha.pipeline.build_benchmark import read_manifest
 from mrha.pressure.analysis import select_candidate, summarize_pressure
 from mrha.pressure.eligibility import assess_research_eligibility
+from mrha.pressure.prompts import build_pressure_prompt
 from mrha.pressure.schema import CandidateEvaluation, PressureRecord
 from mrha.proxies import gold_overlap_proxy, keyword_match, outcome_only, weak_vlm_judge
 from mrha.schema import AttackFamily, AttackProtocol, ManifestItem
@@ -72,6 +73,7 @@ def _artifact_sha256(items: list[ManifestItem]) -> str:
 
 def _backend_module(backend: str) -> Path:
     modules = {
+        "ollama": ROOT / "src/mrha/models/ollama_vlm.py",
         "anthropic": ROOT / "src/mrha/models/anthropic_vlm.py",
         "api": ROOT / "src/mrha/models/api_vlm.py",
         "mlx": ROOT / "src/mrha/models/mlx_vlm.py",
@@ -81,6 +83,8 @@ def _backend_module(backend: str) -> Path:
 
 
 def _provider_endpoint(backend: str) -> str | None:
+    if backend == "ollama":
+        return os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
     if backend == "anthropic":
         return os.environ.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
     if backend == "api":
@@ -114,6 +118,15 @@ def _build_client(
         from mrha.pipeline.run_frozen_audit import EchoVLM
 
         return EchoVLM()
+    if backend == "ollama":
+        from mrha.models.ollama_vlm import OllamaVLMClient
+
+        return OllamaVLMClient(
+            model_id=model_id,
+            base_url=os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434"),
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
     if backend == "anthropic":
         from mrha.models.anthropic_vlm import AnthropicVLMClient
 
@@ -238,7 +251,9 @@ def main() -> None:
         default=ROOT / "results" / "causal_pressure",
     )
     parser.add_argument(
-        "--backend", choices=["anthropic", "api", "mlx", "echo"], default="echo"
+        "--backend",
+        choices=["ollama", "anthropic", "api", "mlx", "echo"],
+        default="echo",
     )
     parser.add_argument("--model-id", default="echo-stub")
     parser.add_argument("--temperature", type=float, default=0.7)
@@ -252,7 +267,9 @@ def main() -> None:
         help="Comma-separated built-in proxies",
     )
     parser.add_argument(
-        "--judge-backend", choices=["anthropic", "api", "mlx"], default=None
+        "--judge-backend",
+        choices=["ollama", "anthropic", "api", "mlx"],
+        default=None,
     )
     parser.add_argument("--judge-model-id", default=None)
     parser.add_argument("--allow-same-judge", action="store_true")
@@ -300,6 +317,7 @@ def main() -> None:
                 ROOT / "src/mrha/pressure/analysis.py",
                 ROOT / "src/mrha/pressure/schema.py",
                 ROOT / "src/mrha/pressure/eligibility.py",
+                ROOT / "src/mrha/pressure/prompts.py",
                 ROOT / "src/mrha/oracles/chart_oracle.py",
                 ROOT / "src/mrha/models/base.py",
                 ROOT / "src/mrha/proxies/keyword_match.py",
@@ -337,10 +355,12 @@ def main() -> None:
         ],
     }
     run_hash = _config_hash(experiment_config)
+    parent_count = len({item.parent_id or item.item_id for item in items})
     requested_eligible, requested_reasons = assess_research_eligibility(
         agent_model_id=args.model_id,
         k=args.k,
         temperature=args.temperature,
+        parent_count=parent_count,
         judge_model_id=args.judge_model_id,
     )
     if args.dry_run:
@@ -354,9 +374,7 @@ def main() -> None:
                 {
                     "config_hash": run_hash,
                     "eligible_items": len(items),
-                    "parent_count": len(
-                        {item.parent_id or item.item_id for item in items}
-                    ),
+                    "parent_count": parent_count,
                     "conditions": conditions,
                     "estimated_agent_calls": agent_calls,
                     "estimated_judge_calls": (
@@ -443,6 +461,7 @@ def main() -> None:
         agent_model_id=agent.model_id,
         k=args.k,
         temperature=args.temperature,
+        parent_count=parent_count,
         judge_model_id=judge.model_id if judge else None,
     )
     _write_json(
@@ -470,7 +489,7 @@ def main() -> None:
         for position, item in enumerate(items, start=1):
             if item.item_id in completed:
                 continue
-            prompt = build_prompt(item.question, item.caption, item.prompt_prefix)
+            prompt = build_pressure_prompt(item)
             baseline = _evaluate(
                 _answer(agent, item.image_path, prompt, temperature=0.0),
                 item,
@@ -526,13 +545,19 @@ def main() -> None:
         {
             "config_hash": run_hash,
             "manifest_sha256": experiment_config["manifest_sha256"],
-            "research_eligible": research_eligible,
             "completed_at": completed_at,
         }
     )
     _write_json(results_dir / "summary.json", summary)
     final_meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    final_meta.update({"completed_at": completed_at, "n_records": len(existing)})
+    final_meta.update(
+        {
+            "completed_at": completed_at,
+            "n_records": len(existing),
+            "research_eligible": summary["research_eligible"],
+            "pressure_manipulation_valid": summary["pressure_manipulation_valid"],
+        }
+    )
     _write_json(results_dir / "run_meta.final.json", final_meta)
     print(json.dumps(summary, indent=2))
 

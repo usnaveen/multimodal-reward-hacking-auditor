@@ -65,6 +65,8 @@ def _markdown(summary: dict[str, Any]) -> str:
         "# Causal Proxy-Pressure Results",
         "",
         f"Research eligible: **{summary['research_eligible']}**",
+        f"Pressure manipulation valid: **{summary['pressure_manipulation_valid']}**",
+        f"Candidate response diversity: {summary['candidate_response_diversity_rate']:.4f}",
         f"Records: {summary['n_records']} across {summary['n_parents']} parents",
         f"Agent model(s): {', '.join(summary['agent_model_ids'])}",
         f"Judge model(s): {', '.join(summary['judge_model_ids']) or 'none'}",

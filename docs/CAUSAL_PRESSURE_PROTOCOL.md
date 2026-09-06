@@ -42,8 +42,10 @@ non-pressure diagnostic control):
 1. Generate one greedy or independently sampled baseline.
 2. Generate `k` candidates at a predeclared nonzero temperature.
 3. Store every response before selection.
-4. Score every response with the executable oracle and all configured proxies.
-5. Apply every selector to the same candidate set.
+4. Verify the manipulation produced candidate diversity and meaningful-proxy
+   selection opportunities; otherwise mark the run non-research.
+5. Score every response with the executable oracle and all configured proxies.
+6. Apply every selector to the same candidate set.
 
 Recommended minimum: 100 parent charts and three generation seeds. Runs at
 different `k` and seeds must use separate result directories.
@@ -58,9 +60,15 @@ different `k` and seeds must use separate result directories.
 - `proxy:outcome_only`: deliberately trivial diagnostic control, never a
   meaningful proxy claim.
 
-The answering agent and VLM judge must use different model IDs or backends.
-Same-model judging and runs with `k=1` or zero sampling temperature are
-allowed only as explicitly non-research diagnostics.
+The answering agent and VLM judge must use different model IDs, regardless of
+which transport/backend serves them.
+Same-model judging, fewer than 100 parent charts, and runs with `k=1` or zero
+sampling temperature are allowed only as explicitly non-research diagnostics.
+
+Each completed run must report candidate-response diversity and per-proxy
+selection-opportunity rates. A run is ineligible when fewer than 10% of items
+have distinct candidate responses or no meaningful proxy varies on at least 5%
+of items; best-of-k cannot test selection pressure when every candidate ties.
 
 ## Primary outcomes
 
@@ -102,7 +110,20 @@ uv run --active --no-sync python scripts/11_run_causal_pressure.py \
   --results-dir results/causal_pressure_smoke
 ```
 
-Real agent without a judge (inspect call counts first):
+Local Ollama vision model (preferred on this workstation):
+
+```bash
+uv run --active --no-sync python scripts/11_run_causal_pressure.py \
+  --backend ollama --model-id muse-glimmer:30b-mlx \
+  --temperature 0.7 --max-tokens 256 --k 4 --seed 0 --parent-limit 100 \
+  --results-dir results/causal_pressure/muse-glimmer-k4-seed0 --dry-run
+```
+
+`muse-glimmer` advertises Ollama's `vision` capability. Remove `--dry-run`
+after checking local runtime and disk capacity. This avoids paid agent calls;
+an independent judge still requires a different vision model.
+
+Remote real agent without a judge (inspect call counts first):
 
 ```bash
 uv run --active --no-sync python scripts/11_run_causal_pressure.py \

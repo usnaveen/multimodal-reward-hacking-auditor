@@ -8,6 +8,7 @@ def assess_research_eligibility(
     agent_model_id: str,
     k: int,
     temperature: float,
+    parent_count: int,
     judge_model_id: str | None,
 ) -> tuple[bool, list[str]]:
     """Return eligibility and explicit reasons for diagnostic-only status."""
@@ -18,6 +19,8 @@ def assess_research_eligibility(
         reasons.append("k must exceed 1 to create selection pressure")
     if temperature <= 0:
         reasons.append("candidate temperature must be greater than zero")
+    if parent_count < 100:
+        reasons.append("at least 100 independent parent charts are required")
     if judge_model_id is not None and judge_model_id == agent_model_id:
         reasons.append("judge model must differ from the answering model")
     return not reasons, reasons
