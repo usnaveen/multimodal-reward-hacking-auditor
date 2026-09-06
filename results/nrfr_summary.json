@@ -1,7 +1,12 @@
 {
   "source": "results/best_of_n/pressure_records.jsonl",
   "n": 1600,
-  "nrfr": 0.12785714285714286,
+  "model_ids": [
+    "echo-stub"
+  ],
+  "research_eligible": false,
+  "nrfr": null,
+  "diagnostic_nrfr": 0.12785714285714286,
   "by_k": {
     "4": {
       "k": 4,
@@ -13,5 +18,7 @@
       ]
     }
   },
-  "notes": []
+  "notes": [
+    "Echo-stub pressure records validate plumbing only; their diagnostic NRFR is not research evidence."
+  ]
 }

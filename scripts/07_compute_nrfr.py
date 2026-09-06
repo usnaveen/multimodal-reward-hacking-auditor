@@ -92,8 +92,24 @@ def main() -> None:
         raise SystemExit(0)
 
     source = str(path.relative_to(ROOT)) if path.is_relative_to(ROOT) else str(path)
+    model_ids = sorted({record.model_id for record in records})
+    research_eligible = "echo-stub" not in model_ids
     overall = nrfr(records)
-    if overall is None:
+    if not research_eligible:
+        payload = {
+            "source": source,
+            "n": len(records),
+            "model_ids": model_ids,
+            "research_eligible": False,
+            "nrfr": None,
+            "diagnostic_nrfr": overall,
+            "by_k": nrfr_by_k(records),
+            "notes": [
+                "Echo-stub pressure records validate plumbing only; their "
+                "diagnostic NRFR is not research evidence.",
+            ],
+        }
+    elif overall is None:
         print(
             "NRFR undefined — no records with metadata.proxy_improved=True. "
             "Check that 02b wrote pressure fields. Exit 0 without fabricating."
@@ -102,6 +118,8 @@ def main() -> None:
         payload = {
             "source": source,
             "n": len(records),
+            "model_ids": model_ids,
+            "research_eligible": True,
             "nrfr": None,
             "by_k": nrfr_by_k(records),
             "notes": [
@@ -112,6 +130,8 @@ def main() -> None:
         payload = {
             "source": source,
             "n": len(records),
+            "model_ids": model_ids,
+            "research_eligible": True,
             "nrfr": overall,
             "by_k": nrfr_by_k(records),
             "notes": [],
@@ -130,13 +150,17 @@ def main() -> None:
         if not md_out.is_absolute():
             md_out = ROOT / md_out
         lines = [
+            f"Model(s): {', '.join(payload['model_ids'])}",
+            f"Research eligible: {payload['research_eligible']}",
+            "",
             "| k | n | n_proxy_improved | NRFR | seeds |",
             "|---|---|------------------|------|-------|",
         ]
         for row in payload["by_k"].values():
+            displayed_nrfr = row["nrfr"] if payload["research_eligible"] else "—"
             lines.append(
                 f"| {row['k']} | {row['n']} | {row['n_proxy_improved']} | "
-                f"{row['nrfr']} | {row['seeds']} |"
+                f"{displayed_nrfr} | {row['seeds']} |"
             )
         md_out.parent.mkdir(parents=True, exist_ok=True)
         md_out.write_text("\n".join(lines) + "\n", encoding="utf-8")

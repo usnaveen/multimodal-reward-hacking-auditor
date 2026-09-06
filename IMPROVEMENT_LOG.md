@@ -18,16 +18,18 @@ blindness information.
 - Added regression tests preventing trivial proxies from contributing.
 - Recomputed all metrics from the existing 1600 real audit records; no model
   rerun or API calls were needed.
-- Added the completed best-of-4 pressure result as a separate NRFR artifact.
+- Verified the existing best-of-4 artifact is `echo-stub` plumbing and
+  explicitly excluded it from research claims; a real-model pressure run is
+  still required.
 
 ### Corrected results
 
 - Meaningful-proxy blind-spot rate: **0.005** (7/1400), bootstrap 95% CI
   [0.0014, 0.0086], replacing the degenerate 0.381 value.
-- Best-of-4 NRFR: **0.128** (seed 0; 1400 proxy-improved records).
+- NRFR: **undefined for research claims**. The existing best-of-4 records use
+  `echo-stub`; their computed value is a pipeline smoke result, not model evidence.
 - Frozen-audit `metrics_summary.json` keeps `nrfr: null` by design because
-  frozen records do not carry pressure metadata; `results/nrfr_summary.json`
-  is the authoritative pressure-run artifact.
+  frozen records do not carry pressure metadata.
 
 ## Round 1 — Interviewer critique (2026-09-04)
 

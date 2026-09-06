@@ -15,7 +15,7 @@
 | n_attack | 1400 | — | 7 attack×protocol combos × 200 |
 | blind_spot_rate | **0.005** | [0.0014, 0.0086] | meaningful proxy pass ∧ oracle fail; excludes `outcome_only` |
 | RHR | 0.0 | [0.0, 0.0] | keyword_match proxy; strict Jaccard — see notes |
-| NRFR (best-of-4) | **0.128** | — | separate pressure run; 1400/1600 records had proxy improvement |
+| NRFR | null | — | No real-model pressure run; existing best-of-4 artifact is `echo-stub` plumbing only |
 | proxy_oracle_gap (outcome_only) | **+0.354** | — | reported diagnostically, but excluded from blind-spot detection |
 | proxy_oracle_gap (keyword_match) | −0.348 | — | strict proxy under-credits partial answers |
 | proxy_oracle_gap (gold_overlap) | +0.004 | — | near-zero gap — best calibrated proxy |
@@ -28,9 +28,8 @@ non-informative. Recomputing the same 1600 records gives 0.005 (7/1400).
 
 **RHR note:** RHR = P(proxy pass ∧ oracle fail) / P(proxy pass). With
 `keyword_match` as the RHR proxy (strict Jaccard), the proxy rarely passes
-when the oracle fails, giving RHR=0. The strongest pressure result is the
-separately computed best-of-4 NRFR=0.128; the frozen-run `metrics_summary.json`
-correctly leaves NRFR null because those records do not contain pressure fields.
+when the oracle fails, giving RHR=0. NRFR remains undefined for research
+claims: the existing best-of-4 records use `echo-stub`, not a real VLM.
 
 ## Per-attack breakdown
 
@@ -108,14 +107,14 @@ Each JSONL line from `02b` includes AuditRecord fields plus metadata:
 | `proxy_scores[<proxy>]` | top-level | Best-of-k proxy score |
 | `proxy_scores.baseline_proxy` | top-level | Baseline proxy score |
 
-**Completed pressure run:** `results/nrfr_summary.json` reports
-NRFR=0.127857 (0.128 rounded) for best-of-4, seed 0, over 1600 records; 1400
-records had `proxy_improved=true`. This remains separate from the frozen-audit
-summary because NRFR requires pressure metadata.
+**No research NRFR is available.** The existing
+`results/best_of_n/pressure_records.jsonl` contains 1600 `echo-stub` records.
+It validates pipeline plumbing only and must not be presented as model
+behavior. A real stochastic VLM pressure run is still required.
 
-| k | n | n_proxy_improved | NRFR | notes |
-|---|---|------------------|------|-------|
-| 4 | 1600 | 1400 | **0.128** | seed 0; real pressure run |
+| k | model | status | NRFR |
+|---|-------|--------|------|
+| 4 | `echo-stub` | plumbing only; excluded from research claims | — |
 
 ## Figures
 
